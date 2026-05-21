@@ -1,12 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useLang } from "@/contexts/LanguageContext";
-
-const heroImageDesktop =
-  "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Warm%20inviting%20kitchen%20scene%20herbal%20tea%20ingredients%20on%20rustic%20wooden%20table%20perilla%20leaves%20fresh%20ginger%20root%20chamomile%20flowers%20loose%20green%20tea%20glass%20jar%20raw%20honey%20wooden%20dipper%20turmeric%20powder%20ceramic%20bowl%20natural%20morning%20light%20window%20soft%20warm%20amber%20tones%20East%20meets%20West%20food%20as%20medicine%20cozy%20home%20kitchen%20atmosphere%20clean%20composition%20editorial%20photography&image_size=landscape_16_9";
-
-const heroImageMobile =
-  "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Warm%20inviting%20kitchen%20scene%20herbal%20tea%20ingredients%20on%20rustic%20wooden%20table%20perilla%20leaves%20fresh%20ginger%20root%20chamomile%20flowers%20loose%20green%20tea%20glass%20jar%20raw%20honey%20wooden%20dipper%20turmeric%20powder%20ceramic%20bowl%20natural%20morning%20light%20window%20soft%20warm%20amber%20tones%20East%20meets%20West%20food%20as%20medicine%20cozy%20home%20kitchen%20atmosphere%20clean%20composition%20editorial%20photography&image_size=portrait_4_3";
+import { heroImages } from "@/lib/images";
 
 const statCards = [
   { num: "146", labelEn: "Foods", labelZh: "食材" },
@@ -17,6 +13,7 @@ const statCards = [
 
 export function Hero() {
   const { t } = useLang();
+  const [imgFailed, setImgFailed] = useState(false);
 
   return (
     <section className="relative overflow-hidden">
@@ -33,39 +30,53 @@ export function Hero() {
         {/* ── MOBILE & TABLET LAYOUT (<1024px) ── */}
         <div className="lg:hidden">
           {/* MOBILE IMAGE (<768px): portrait */}
-          <div className="md:hidden pt-8 pb-4">
-            <div className="rounded-2xl overflow-hidden shadow-lg mx-auto max-w-md">
-              <img
-                src={heroImageMobile}
-                alt={t(
-                  "Fresh herbs and kitchen ingredients for natural wellness",
-                  "天然养生厨房食材与香草"
-                )}
-                className="w-full h-auto object-cover"
-                loading="eager"
-                sizes="100vw"
-              />
+          <div className="md:hidden pt-4 pb-2">
+            <div className="rounded-2xl overflow-hidden shadow-lg mx-auto max-w-xs">
+              {imgFailed ? (
+                <div className="w-full h-40 bg-gradient-to-br from-amber-100 to-amber-50 flex items-center justify-center">
+                  <span className="text-5xl">🌿</span>
+                </div>
+              ) : (
+                <img
+                  src={heroImages.mobile}
+                  alt={t(
+                    "Fresh herbs and kitchen ingredients for natural wellness",
+                    "天然养生厨房食材与香草"
+                  )}
+                  className="w-full h-40 object-cover"
+                  loading="eager"
+                  sizes="100vw"
+                  onError={() => setImgFailed(true)}
+                />
+              )}
             </div>
           </div>
 
           {/* TABLET IMAGE (≥768px): landscape */}
           <div className="hidden md:block pt-12 pb-6">
             <div className="rounded-2xl overflow-hidden shadow-xl mx-auto max-w-2xl">
-              <img
-                src={heroImageDesktop}
-                alt={t(
-                  "Fresh herbs and kitchen ingredients for natural wellness",
-                  "天然养生厨房食材与香草"
-                )}
-                className="w-full h-auto object-cover"
-                loading="eager"
-                sizes="(max-width: 1023px) 672px"
-              />
+              {imgFailed ? (
+                <div className="w-full h-48 bg-gradient-to-br from-amber-100 to-amber-50 flex items-center justify-center">
+                  <span className="text-6xl">🌿</span>
+                </div>
+              ) : (
+                <img
+                  src={heroImages.desktop}
+                  alt={t(
+                    "Fresh herbs and kitchen ingredients for natural wellness",
+                    "天然养生厨房食材与香草"
+                  )}
+                  className="w-full h-auto object-cover"
+                  loading="eager"
+                  sizes="(max-width: 1023px) 672px"
+                  onError={() => setImgFailed(true)}
+                />
+              )}
             </div>
           </div>
 
-          <div className="text-center pb-6 md:pb-8">
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-amber-950 leading-tight px-2 max-w-lg md:max-w-xl mx-auto">
+          <div className="text-center pb-4 md:pb-6">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-amber-950 leading-tight px-2 max-w-lg md:max-w-xl mx-auto">
               {t(
                 "146 Foods. Your Body. Your Kitchen.",
                 "146 种食物。你的身体。你的厨房。"
@@ -101,17 +112,24 @@ export function Hero() {
           {/* Left: Hero image */}
           <div className="flex-1 relative">
             <div className="rounded-2xl overflow-hidden shadow-xl">
-              <img
-                src={heroImageDesktop}
-                alt={t(
-                  "Fresh herbs and kitchen ingredients for natural wellness",
-                  "天然养生厨房食材与香草"
-                )}
-                className="w-full h-auto object-cover"
-                loading="eager"
-                sizes="(min-width: 1280px) 600px, (min-width: 1024px) 480px"
-                srcSet={`${heroImageDesktop} 600w`}
-              />
+              {imgFailed ? (
+                <div className="w-full h-80 bg-gradient-to-br from-amber-100 to-amber-50 flex items-center justify-center">
+                  <span className="text-7xl">🌿</span>
+                </div>
+              ) : (
+                <img
+                  src={heroImages.desktop}
+                  alt={t(
+                    "Fresh herbs and kitchen ingredients for natural wellness",
+                    "天然养生厨房食材与香草"
+                  )}
+                  className="w-full h-auto object-cover"
+                  loading="eager"
+                  sizes="(min-width: 1280px) 600px, (min-width: 1024px) 480px"
+                  srcSet={`${heroImages.desktop} 600w`}
+                  onError={() => setImgFailed(true)}
+                />
+              )}
             </div>
             {/* Decorative badge */}
             <div className="absolute -bottom-4 -right-4 bg-white rounded-xl shadow-lg px-4 py-2.5 border border-amber-100/60">
@@ -173,7 +191,7 @@ export function Hero() {
         </div>
 
         {/* ── STAT CARDS (Shared) ── */}
-        <div className="pb-12 sm:pb-16">
+        <div className="pb-8 sm:pb-12">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 max-w-2xl lg:max-w-3xl mx-auto">
             {statCards.map((card) => (
               <div

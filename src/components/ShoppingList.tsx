@@ -1,56 +1,172 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import { useLang } from "@/contexts/LanguageContext";
 import type { FoodItem } from "./FoodCard";
+import { getFoodImagePath, shoppingListHeaderImage } from "@/lib/images";
 
-const foodIllustrations: Record<string, string> = {
-  "perilla-leaf": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Fresh%20green%20perilla%20leaves%20(shiso)%20on%20a%20rustic%20wooden%20kitchen%20board%2C%20natural%20morning%20light%2C%20soft%20warm%20tones%2C%20home%20kitchen%20atmosphere%2C%20minimal%20styling&image_size=square_hd",
-  "ginger": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Fresh%20ginger%20root%20with%20a%20few%20slices%20on%20a%20warm%20terracotta%20plate%2C%20natural%20lighting%2C%20rustic%20kitchen%20table%2C%20cozy%20home%20cooking%20vibe&image_size=square_hd",
-  "nettle-leaf": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Dried%20nettle%20leaves%20in%20a%20glass%20tea%20jar%20next%20to%20a%20ceramic%20teacup%2C%20soft%20afternoon%20light%2C%20herbal%20tea%20preparation%2C%20warm%20cozy%20kitchen&image_size=square_hd",
-  "quercetin-foods": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Red%20onion%2C%20fresh%20apple%20with%20skin%2C%20capers%20in%20a%20small%20bowl%20on%20a%20wooden%20cutting%20board%2C%20rustic%20kitchen%20scene%2C%20natural%20daylight&image_size=square_hd",
-  "turmeric-milk": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Warm%20golden%20turmeric%20milk%20in%20a%20ceramic%20mug%20with%20turmeric%20powder%20and%20cinnamon%20stick%20nearby%2C%20cozy%20evening%20kitchen%2C%20soft%20warm%20lighting%2C%20comforting%20atmosphere&image_size=square_hd",
-  "green-tea": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Loose%20leaf%20green%20tea%20in%20a%20glass%20teapot%2C%20steaming%20ceramic%20cup%2C%20bamboo%20tea%20scoop%2C%20calm%20afternoon%20kitchen%20scene%2C%20natural%20soft%20light&image_size=square_hd",
-  "local-honey": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Raw%20local%20honey%20in%20a%20glass%20jar%20with%20wooden%20dipper%2C%20morning%20sunlight%20on%20a%20rustic%20kitchen%20table%2C%20warm%20golden%20tones%2C%20home%20kitchen%20atmosphere&image_size=square_hd",
-  "propolis-spray": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Natural%20propolis%20nasal%20spray%20bottle%20next%20to%20honeycomb%20pieces%20and%20fresh%20herbs%20on%20a%20wooden%20surface%2C%20soft%20natural%20light%2C%20apothecary%20kitchen%20style&image_size=square_hd",
+const aisleLabels: Record<string, { en: string; zh: string }> = {
+  tcm: { en: "🌿 Herbal & Tea Aisle", zh: "🌿 草药茶专区" },
+  western: { en: "🌱 Herbal & Tea Aisle", zh: "🌱 草药茶专区" },
+  food: { en: "🥕 Fresh Produce", zh: "🥕 生鲜蔬菜区" },
+  bee: { en: "🍯 Honey & Bee Products", zh: "🍯 蜂蜜蜂产品区" },
 };
 
 export function ShoppingList({ foods }: { foods: FoodItem[] }) {
   const { t, lang } = useLang();
+  const [headerImgFailed, setHeaderImgFailed] = useState(false);
+  const [foodImgFailed, setFoodImgFailed] = useState<string[]>([]);
 
-  const handleExport = () => {
+  const handleExportImage = async () => {
     const isZh = lang === "zh";
-    const csvContent = [
-      isZh ? "食材,用量,时间" : "food,amount,timing",
-      ...foods
-        .filter((f) => !f.excluded)
-        .map((f) =>
-          isZh
-            ? `"${f.nameZh}",${f.dosageZh?.daily || ""},${f.timingZh}`
-            : `"${f.nameEn}",${f.dosageEn?.daily || ""},${f.timingEn}`
-        ),
-    ].join("\n");
+    const active = foods.filter((f) => !f.excluded);
+    if (active.length === 0) return;
 
-    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = isZh ? "herbtable-gouwuqingdan.csv" : "herbtable-shopping-list.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    const groups: Record<string, FoodItem[]> = {};
+    for (const food of active) {
+      const cat = food.category || "other";
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(food);
+    }
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const W = 800;
+    const HEADER = 100;
+    const FOOTER = 60;
+    const ROW_H = 48;
+    const SECTION_H = 28;
+    const GAP = 4;
+    const PAD = 32;
+
+    let totalH = HEADER + PAD;
+    for (const [, items] of Object.entries(groups)) {
+      totalH += SECTION_H;
+      totalH += items.length * ROW_H;
+      totalH += GAP;
+    }
+    totalH += FOOTER + PAD;
+    canvas.width = W;
+    canvas.height = totalH;
+
+    ctx.fillStyle = "#FFFBF5";
+    ctx.fillRect(0, 0, W, totalH);
+
+    ctx.fillStyle = "#92400E";
+    ctx.font = "bold 20px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("🧺 HerbTable — " + (isZh ? "厨房清单" : "Kitchen Collection"), W / 2, 50);
+
+    ctx.fillStyle = "#A16207";
+    ctx.font = "13px system-ui, -apple-system, sans-serif";
+    ctx.fillText(
+      isZh ? "来自你的厨房 · 天然食材为你准备" : "From your kitchen · Natural ingredients for you",
+      W / 2,
+      78
+    );
+
+    let y = HEADER + PAD;
+
+    const categoryLabels: Record<string, string> = {
+      tcm: isZh ? "🌿 草药茶专区" : "🌿 Herbal & Tea Aisle",
+      western: isZh ? "🌱 草药茶专区" : "🌱 Herbal & Tea Aisle",
+      food: isZh ? "🥕 生鲜蔬菜区" : "🥕 Fresh Produce",
+      bee: isZh ? "🍯 蜂蜜蜂产品区" : "🍯 Honey & Bee Products",
+    };
+
+    for (const [cat, items] of Object.entries(groups)) {
+      ctx.fillStyle = "#D97706";
+      ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(categoryLabels[cat] || cat, PAD, y + 14);
+      y += SECTION_H;
+
+      for (const food of items) {
+        ctx.font = "22px system-ui, sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText(food.emoji || "•", PAD, y + 28);
+
+        ctx.fillStyle = "#1A1A1A";
+        ctx.font = "500 14px system-ui, -apple-system, sans-serif";
+        const name = isZh ? food.nameZh : food.nameEn;
+        ctx.textAlign = "left";
+        ctx.fillText(name, PAD + 40, y + 20);
+
+        ctx.fillStyle = "#78716C";
+        ctx.font = "12px system-ui, -apple-system, sans-serif";
+        const timing = isZh ? food.timingZh : food.timingEn;
+        ctx.fillText(timing, PAD + 40, y + 36);
+
+        ctx.fillStyle = "#78716C";
+        ctx.font = "12px system-ui, -apple-system, sans-serif";
+        ctx.textAlign = "right";
+        const dosage = isZh ? (food.dosageZh?.daily || "按需") : (food.dosageEn?.daily || "As needed");
+        ctx.fillText(dosage, W - PAD, y + 28);
+
+        y += ROW_H;
+      }
+
+      ctx.strokeStyle = "#FDE68A";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(PAD, y - GAP);
+      ctx.lineTo(W - PAD, y - GAP);
+      ctx.stroke();
+      y += GAP;
+    }
+
+    ctx.fillStyle = "#A16207";
+    ctx.font = "12px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("HerbTable · herbtable.app", W / 2, totalH - FOOTER + 24);
+
+    ctx.fillStyle = "#D6D3D1";
+    ctx.font = "10px system-ui, -apple-system, sans-serif";
+    ctx.fillText(
+      isZh ? "食物信息，非医疗建议" : "Food information, not medical advice",
+      W / 2,
+      totalH - FOOTER + 44
+    );
+
+    const link = document.createElement("a");
+    const ext = "jpg";
+    const fmt = "image/jpeg";
+    link.download = isZh ? `herbtable-gouwuqingdan.${ext}` : `herbtable-shopping-list.${ext}`;
+    link.href = canvas.toDataURL(fmt, 0.92);
+    link.click();
   };
 
   const active = foods.filter((f) => !f.excluded);
+
+  const grouped = useMemo(() => {
+    const groups: Record<string, FoodItem[]> = {};
+    for (const food of active) {
+      const cat = food.category || "other";
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(food);
+    }
+    return groups;
+  }, [active]);
 
   return (
     <div className="bg-[#FFFBF5] border border-amber-200/40 rounded-2xl p-5 shadow-sm">
       <div className="text-center mb-5 pb-4 border-b border-amber-100/60">
         <div className="mb-3">
-          <img
-            src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Cozy%20kitchen%20counter%20with%20fresh%20herbs%20ginger%20root%20perilla%20leaves%20honey%20jar%20turmeric%20powder%20green%20tea%20leaves%20on%20a%20rustic%20wooden%20table%2C%20soft%20natural%20morning%20light%2C%20warm%20home%20cooking%20atmosphere%2C%20minimal%20clean%20style&image_size=landscape_4_3"
-            alt="Kitchen herbs"
-            className="w-full h-32 object-cover rounded-xl mb-3"
-            loading="lazy"
-          />
+          {headerImgFailed ? (
+            <div className="w-full h-32 rounded-xl mb-3 bg-gradient-to-br from-amber-100 to-amber-50 flex items-center justify-center">
+              <span className="text-4xl">🧺</span>
+            </div>
+          ) : (
+            <img
+              src={shoppingListHeaderImage}
+              alt="Kitchen herbs"
+              className="w-full h-32 object-cover rounded-xl mb-3"
+              loading="lazy"
+              onError={() => setHeaderImgFailed(true)}
+            />
+          )}
         </div>
         <p className="text-xs text-amber-600/70 tracking-wide uppercase font-medium">
           {t("From your kitchen", "来自你的厨房")}
@@ -64,36 +180,55 @@ export function ShoppingList({ foods }: { foods: FoodItem[] }) {
         </p>
       </div>
 
-      <ul className="space-y-3 mb-4">
-        {active.map((food) => (
-          <li
-            key={food.id}
-            className="flex items-center gap-3 p-2.5 rounded-xl bg-amber-50/50 hover:bg-amber-50 transition-colors group"
-          >
-            <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-amber-100/50">
-              <img
-                src={foodIllustrations[food.id] || ""}
-                alt={t(food.nameEn, food.nameZh)}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-amber-900 truncate">
-                {t(food.nameEn, food.nameZh)}
+      <div className="space-y-4 mb-4">
+        {Object.entries(grouped).map(([category, items]) => {
+          const label = aisleLabels[category];
+          return (
+            <div key={category}>
+              <p className="text-xs font-medium text-amber-700/70 mb-2 px-1">
+                {t(label?.en || category, label?.zh || category)}
               </p>
-              <p className="text-xs text-amber-600/70 truncate">
-                {t(food.timingEn, food.timingZh)}
-              </p>
+              <ul className="space-y-2">
+                {items.map((food) => (
+                  <li
+                    key={food.id}
+                    className="flex items-center gap-3 p-2.5 rounded-xl bg-amber-50/50 hover:bg-amber-50 transition-colors group"
+                  >
+                    <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-amber-100/50">
+                      {foodImgFailed.includes(food.id) ? (
+                        <div className="w-full h-full flex items-center justify-center text-lg">
+                          {food.emoji}
+                        </div>
+                      ) : (
+                        <img
+                          src={getFoodImagePath(food.id)}
+                          alt={t(food.nameEn, food.nameZh)}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={() => setFoodImgFailed((prev) => [...prev, food.id])}
+                        />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-amber-900 truncate">
+                        {t(food.nameEn, food.nameZh)}
+                      </p>
+                      <p className="text-xs text-amber-600/70 truncate">
+                        {t(food.timingEn, food.timingZh)}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs text-amber-700/60">
+                        {t(food.dosageEn?.daily || "As needed", food.dosageZh?.daily || "按需")}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div className="text-right flex-shrink-0">
-              <p className="text-xs text-amber-700/60">
-                {t(food.dosageEn?.daily || "As needed", food.dosageZh?.daily || "按需")}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
+          );
+        })}
+      </div>
 
       <div className="pt-3 border-t border-amber-100/60">
         <div className="flex items-center justify-between mb-2">
@@ -105,7 +240,7 @@ export function ShoppingList({ foods }: { foods: FoodItem[] }) {
           </span>
         </div>
         <button
-          onClick={handleExport}
+          onClick={handleExportImage}
           className="w-full py-2.5 rounded-xl text-sm font-medium transition-all bg-amber-100 hover:bg-amber-200 text-amber-800 flex items-center justify-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -114,7 +249,7 @@ export function ShoppingList({ foods }: { foods: FoodItem[] }) {
           {t("Save my list", "保存我的清单")}
         </button>
         <p className="text-[10px] text-amber-500/50 text-center mt-2">
-          {t("Downloads as CSV · opens in any spreadsheet", "下载为CSV · 可在任何表格软件中打开")}
+          {t("Downloads as image · share or print anytime", "下载为图片 · 可随时分享或打印")}
         </p>
       </div>
     </div>

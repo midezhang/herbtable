@@ -1,15 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { EvidenceBadge } from "./EvidenceBadge";
 import { CategoryTag } from "./CategoryTag";
 import { SourceLink } from "./SourceLink";
 import { useLang } from "@/contexts/LanguageContext";
+import { getFoodImagePath } from "@/lib/images";
 
 export type FoodItem = {
   id: string;
   emoji: string;
   nameEn: string;
   nameZh: string;
+  pinyin?: string;
+  latinName?: string;
   category: string;
   timingEn: string;
   timingZh: string;
@@ -27,17 +31,6 @@ export type FoodItem = {
   rationaleEn: string;
   rationaleZh: string;
   excluded: boolean;
-};
-
-const foodImages: Record<string, string> = {
-  "perilla-leaf": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Fresh%20green%20perilla%20leaves%20(shiso)%20on%20a%20rustic%20wooden%20kitchen%20board%2C%20natural%20morning%20light%2C%20soft%20warm%20tones%2C%20home%20kitchen%20atmosphere%2C%20minimal%20styling&image_size=portrait_4_3",
-  "ginger": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Fresh%20ginger%20root%20with%20a%20few%20slices%20on%20a%20warm%20terracotta%20plate%2C%20natural%20lighting%2C%20rustic%20kitchen%20table%2C%20cozy%20home%20cooking%20vibe&image_size=portrait_4_3",
-  "nettle-leaf": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Dried%20nettle%20leaves%20in%20a%20glass%20tea%20jar%20next%20to%20a%20ceramic%20teacup%2C%20soft%20afternoon%20light%2C%20herbal%20tea%20preparation%2C%20warm%20cozy%20kitchen&image_size=portrait_4_3",
-  "quercetin-foods": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Red%20onion%2C%20fresh%20apple%20with%20skin%2C%20capers%20in%20a%20small%20bowl%20on%20a%20wooden%20cutting%20board%2C%20rustic%20kitchen%20scene%2C%20natural%20daylight&image_size=portrait_4_3",
-  "turmeric-milk": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Warm%20golden%20turmeric%20milk%20in%20a%20ceramic%20mug%20with%20turmeric%20powder%20and%20cinnamon%20stick%20nearby%2C%20cozy%20evening%20kitchen%2C%20soft%20warm%20lighting%2C%20comforting%20atmosphere&image_size=portrait_4_3",
-  "green-tea": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Loose%20leaf%20green%20tea%20in%20a%20glass%20teapot%2C%20steaming%20ceramic%20cup%2C%20bamboo%20tea%20scoop%2C%20calm%20afternoon%20kitchen%20scene%2C%20natural%20soft%20light&image_size=portrait_4_3",
-  "local-honey": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Raw%20local%20honey%20in%20a%20glass%20jar%20with%20wooden%20dipper%2C%20morning%20sunlight%20on%20a%20rustic%20kitchen%20table%2C%20warm%20golden%20tones%2C%20home%20kitchen%20atmosphere&image_size=portrait_4_3",
-  "propolis-spray": "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Natural%20propolis%20nasal%20spray%20bottle%20next%20to%20honeycomb%20pieces%20and%20fresh%20herbs%20on%20a%20wooden%20surface%2C%20soft%20natural%20light%2C%20apothecary%20kitchen%20style&image_size=portrait_4_3",
 };
 
 function renderDosage(
@@ -89,6 +82,7 @@ export function FoodCard({
   const { t, lang } = useLang();
   const isExcluded = food.excluded;
   const dosage = lang === "en" ? food.dosageEn : food.dosageZh;
+  const [imgFailed, setImgFailed] = useState(false);
 
   return (
     <div
@@ -99,13 +93,20 @@ export function FoodCard({
           : "border-amber-200/40 shadow-sm card-hover cursor-pointer"
       }`}
     >
-      <div className="relative h-40 bg-amber-50/30 overflow-hidden">
-        <img
-          src={foodImages[food.id] || ""}
-          alt={t(food.nameEn, food.nameZh)}
-          className="w-full h-full object-cover"
-          loading="lazy"
-        />
+      <div className={`relative ${mode === "detail" ? "h-28" : "h-24"} bg-amber-50/30 overflow-hidden`}>
+        {imgFailed ? (
+          <div className="flex items-center justify-center w-full h-full text-3xl">
+            {food.emoji}
+          </div>
+        ) : (
+          <img
+            src={getFoodImagePath(food.id)}
+            alt={t(food.nameEn, food.nameZh)}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={() => setImgFailed(true)}
+          />
+        )}
         <div className="absolute top-3 right-3">
           <CategoryTag category={food.category} />
         </div>
@@ -118,7 +119,7 @@ export function FoodCard({
         )}
       </div>
 
-      <div className="p-4">
+      <div className="p-3">
         <div className="flex items-center gap-2 mb-2">
           <h3 className="font-semibold text-gray-900 text-base">
             {t(food.nameEn, food.nameZh)}
@@ -137,6 +138,12 @@ export function FoodCard({
 
         {mode === "detail" && (
           <div className="mt-4 pt-4 border-t border-amber-100/60 space-y-4">
+            {lang === "zh" && food.pinyin && food.latinName && (
+              <div className="text-xs text-amber-600/70 bg-amber-50/50 rounded-lg px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
+                <span><span className="font-medium">拼音:</span> {food.pinyin}</span>
+                <span><span className="font-medium">Latin:</span> <span className="italic">{food.latinName}</span></span>
+              </div>
+            )}
             <div>
               <h4 className="text-xs font-semibold text-amber-700 mb-1.5 flex items-center gap-1">
                 <span>💡</span>
@@ -194,7 +201,7 @@ export function FoodArsenal({
   mode: "light" | "detail";
 }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {foods.map((food) => (
         <FoodCard key={food.id} food={food} mode={mode} />
       ))}
